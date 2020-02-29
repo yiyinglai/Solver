@@ -2,7 +2,6 @@ import numpy as np
 from toyplex.components import Var, LinExpr, LinConstr
 from toyplex.simplex import Simplex
 import math
-import gurobipy as gp
 __version__ = '0'
 
 
