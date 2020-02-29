@@ -5,7 +5,7 @@ import unittest
 class Var:
     """Variables in a solver.
     """
-    def __init__(self, name, type='continuous'):
+    def __init__(self, name, type='cont'):
         self.type = type
         self.name = name
 
@@ -31,6 +31,36 @@ class Var:
                 return LinExpr({self.name: 1, other.name: 1})
         elif isinstance(other, LinExpr):
             return other.__radd__(self)
+
+    def __eq__(self, other):
+        if isinstance(other, (int, float)):
+            return LinConstr(1 * self, '==', LinExpr({'const': other}))
+        elif isinstance(other, Var):
+            if other.name == self.name:
+                print('This is valid, but not necessary')
+                return LinConstr(1 * self, '==', 1 * other)
+            else:
+                return LinConstr(1 * self, '==', 1 * other)
+
+    def __le__(self, other):
+        if isinstance(other, (int, float)):
+            return LinConstr(1 * self, '<=', LinExpr({'const': other}))
+        elif isinstance(other, Var):
+            if other.name == self.name:
+                print('This is valid, but not necessary')
+                return LinConstr(1 * self, '<=', 1 * other)
+            else:
+                return LinConstr(1 * self, '<=', 1 * other)
+
+    def __ge__(self, other):
+        if isinstance(other, (int, float)):
+            return LinConstr(1 * self, '>=', LinExpr({'const': other}))
+        elif isinstance(other, Var):
+            if other.name == self.name:
+                print('This is valid, but not necessary')
+                return LinConstr(1 * self, '>=', 1 * other)
+            else:
+                return LinConstr(1 * self, '>=', 1 * other)
 
     def __sub__(self, other):
         return self.__add__(-other)
@@ -193,8 +223,10 @@ class LinConstr:
                 coeffs[key] -= rhs.coeffs[key]
             else:
                 coeffs[key] = rhs.coeffs[key]
+        # final right hand side
         self.b = -coeffs['const']
         del coeffs['const']
+        # final left hand side
         self.coeffs = coeffs
 
     def __str__(self):
@@ -212,114 +244,126 @@ class LinConstr:
 
 class Test(unittest.TestCase):
     def test_Var__neg__(self):
-        x = Var('x', type='continuous')
+        x = Var('x', type='cont')
         self.assertEqual((-x).coeffs, {'x': -1})
 
     def test_Var__mul__(self):
-        x = Var('x', type='continuous')
+        x = Var('x', type='cont')
         self.assertEqual((x * 1).coeffs, {'x': 1})
 
     def test_Var__rmul__(self):
-        x = Var('x', type='continuous')
+        x = Var('x', type='cont')
         self.assertEqual((1 * x).coeffs, {'x': 1})
 
     def test_Var__truediv__(self):
-        x = Var('x', type='continuous')
+        x = Var('x', type='cont')
         self.assertEqual((x/2).coeffs, {'x': 1/2})
 
     def test_Var__add__(self):
-        x = Var('x', type='continuous')
-        y = Var('y', type='continuous')
+        x = Var('x', type='cont')
+        y = Var('y', type='cont')
         self.assertEqual((x + 1).coeffs, {'x': 1, 'const': 1})
         self.assertEqual((x + x).coeffs, {'x': 2})
         self.assertEqual((x + y).coeffs, {'x': 1, 'y': 1})
         self.assertEqual((x + (x + 1)).coeffs, {'x': 2, 'const': 1})
 
     def test_Var__radd__(self):
-        x = Var('x', type='continuous')
-        y = Var('y', type='continuous')
+        x = Var('x', type='cont')
+        y = Var('y', type='cont')
         self.assertEqual((1 + x).coeffs, {'x': 1, 'const': 1})
         self.assertEqual((x + x).coeffs, {'x': 2})
         self.assertEqual((x + y).coeffs, {'x': 1, 'y': 1})
         self.assertEqual(((x + 1) + x).coeffs, {'x': 2, 'const': 1})
 
     def test_Var__sub__(self):
-        x = Var('x', type='continuous')
-        y = Var('y', type='continuous')
+        x = Var('x', type='cont')
+        y = Var('y', type='cont')
         self.assertEqual((x - 1).coeffs, {'x': 1, 'const': -1})
         self.assertEqual((x - x).coeffs, {'x': 0})
         self.assertEqual((x - y).coeffs, {'x': 1, 'y': -1})
         self.assertEqual((x - (x + 1)).coeffs, {'x': 0, 'const': -1})
 
     def test_Var__rsub__(self):
-        x = Var('x', type='continuous')
-        y = Var('y', type='continuous')
+        x = Var('x', type='cont')
+        y = Var('y', type='cont')
         self.assertEqual((1 - x).coeffs, {'x': -1, 'const': 1})
         self.assertEqual((x - x).coeffs, {'x': 0})
         self.assertEqual((x - y).coeffs, {'x': 1, 'y': -1})
         self.assertEqual(((x + 1) - x).coeffs, {'x': 0, 'const': 1})
 
     def test_LinExpr__neg__(self):
-        x = Var('x', type='continuous')
-        y = Var('y', type='continuous')
+        x = Var('x', type='cont')
+        y = Var('y', type='cont')
         self.assertEqual((-(x + 1)).coeffs, {'x': -1, 'const': -1})
         self.assertEqual((-(x + y)).coeffs, {'x': -1, 'y': -1})
 
     def test_LinExpr__mul__(self):
-        x = Var('x', type='continuous')
-        y = Var('y', type='continuous')
+        x = Var('x', type='cont')
+        y = Var('y', type='cont')
         self.assertEqual(((x + 1) * 1).coeffs, {'x': 1, 'const': 1})
         self.assertEqual(((x + y) * 1).coeffs, {'x': 1, 'y': 1})
 
     def test_LinExpr__rmul__(self):
-        x = Var('x', type='continuous')
-        y = Var('y', type='continuous')
+        x = Var('x', type='cont')
+        y = Var('y', type='cont')
         self.assertEqual((1 * (x + 1)).coeffs, {'x': 1, 'const': 1})
         self.assertEqual((1 * (x + y)).coeffs, {'x': 1, 'y': 1})
 
     def test_LinExpr__truediv__(self):
-        x = Var('x', type='continuous')
-        y = Var('y', type='continuous')
+        x = Var('x', type='cont')
+        y = Var('y', type='cont')
         self.assertEqual(((x + 1)/2).coeffs, {'x': 1/2, 'const': 1/2})
         self.assertEqual(((x + y)/2).coeffs, {'x': 1/2, 'y': 1/2})
 
     def test_LinExpr__add__(self):
-        x = Var('x', type='continuous')
-        y = Var('y', type='continuous')
+        x = Var('x', type='cont')
+        y = Var('y', type='cont')
         self.assertEqual((x + 1 + 1).coeffs, {'x': 1, 'const': 2})
         self.assertEqual((x + x + y).coeffs, {'x': 2, 'y': 1})
         self.assertEqual((x + y + y).coeffs, {'x': 1, 'y': 2})
         self.assertEqual(((x + 1) + x).coeffs, {'x': 2, 'const': 1})
 
     def test_LinExpr__radd__(self):
-        x = Var('x', type='continuous')
-        y = Var('y', type='continuous')
+        x = Var('x', type='cont')
+        y = Var('y', type='cont')
         self.assertEqual((x + 1 + 1).coeffs, {'x': 1, 'const': 2})
         self.assertEqual((x + (x + y)).coeffs, {'x': 2, 'y': 1})
         self.assertEqual((x + (y + y)).coeffs, {'x': 1, 'y': 2})
         self.assertEqual((x + (1 + x)).coeffs, {'x': 2, 'const': 1})
 
     def test_LinExpr__sub__(self):
-        x = Var('x', type='continuous')
-        y = Var('y', type='continuous')
+        x = Var('x', type='cont')
+        y = Var('y', type='cont')
         self.assertEqual((x + 1 - 1).coeffs, {'x': 1, 'const': 0})
         self.assertEqual((x + x - y).coeffs, {'x': 2, 'y': -1})
         self.assertEqual((x + y - y).coeffs, {'x': 1, 'y': 0})
         self.assertEqual(((x + 1) - x).coeffs, {'x': 0, 'const': 1})
 
     def test_LinExpr__rsub__(self):
-        x = Var('x', type='continuous')
-        y = Var('y', type='continuous')
+        x = Var('x', type='cont')
+        y = Var('y', type='cont')
         self.assertEqual((1 - (x + 1)).coeffs, {'x': -1, 'const': 0})
         self.assertEqual((x - (x - y)).coeffs, {'x': 0, 'y': 1})
         self.assertEqual((x - (y - y)).coeffs, {'x': 1, 'y': 0})
         self.assertEqual((x - (1 - x)).coeffs, {'x': 2, 'const': -1})
 
     def test_LinConstr__eq__(self):
-        x = Var('x', type='continuous')
-        y = Var('y', type='continuous')
+        x = Var('x', type='cont')
+        y = Var('y', type='cont')
         self.assertEqual(str(x + y == 2), 'x + y == 2')
         self.assertEqual(str(1 * x + 2 * y == 2), 'x + 2 * y == 2')
+
+    def test_Var__eq__(self):
+        x = Var('x', type='cont')
+        self.assertEqual(str(x == 2), 'x == 2')
+
+    def test_Var__le__(self):
+        x = Var('x', type='cont')
+        self.assertEqual(str(x <= 2), 'x <= 2')
+
+    def test_Var__ge__(self):
+        x = Var('x', type='cont')
+        self.assertEqual(str(x >= 2), 'x >= 2')
 
 
 if __name__ == '__main__':
