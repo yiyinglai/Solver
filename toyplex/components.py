@@ -150,9 +150,7 @@ class LinExpr:
     __rmul__ = __mul__
     __radd__ = __add__
 
-    def __str__(self):
-        # _str = ' '.join(str(self.coeffs[key]) + '*' + key if self.coeffs[key] != 1 else '' + key for key in self.coeffs.keys())
-        _str = ''
+    def __str__(sel_str = ''
         for idx, key in enumerate(self.coeffs.keys()):
             if key == 'const':
                 if self.coeffs[key] < 0:
@@ -177,6 +175,11 @@ class LinExpr:
                         _str += str(self.coeffs[key]) + '*' + key
                     else:
                         _str += '+' + str(self.coeffs[key]) + '*' + key
+        _str = _str.replace('+', ' + ')
+        _str = _str.replace('-', ' - ')
+        _str = _str.replace('*', ' * ')
+        _str = _str.replace('/', ' / ')
+        _str = _str.replace('  ', ' ')
         return _str
 
     def __eq__(self, other):
