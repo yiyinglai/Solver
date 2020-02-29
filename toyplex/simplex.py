@@ -164,9 +164,10 @@ class Simplex:
         if self.code == 0:
             soln = np.zeros(self.n_vars)
             for i in range(self.n_vars):
-                arr = np.where(self.tab[:, i] == 1)[0]
-                if len(arr) == 1:
-                    soln[i] = self.tab[:, -1][arr[0]]
+                if sum(self.tab[:-1, i]) == 1:
+                    arr = np.where(self.tab[:, i] == 1)[0]
+                    if len(arr) == 1:
+                        soln[i] = self.tab[:, -1][arr[0]]
             print('solution:')
             print('(' + ', '.join('{0:0.3f}'.format(x) for x in soln) + ')')
             print('objective function:')
