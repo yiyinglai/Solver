@@ -8,6 +8,7 @@ class Var:
     def __init__(self, name, type='cont'):
         self.type = type
         self.name = name
+        self.val = None
 
     def __neg__(self):
         return LinExpr({self.name: -1})
