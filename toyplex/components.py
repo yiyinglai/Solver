@@ -151,7 +151,8 @@ class LinExpr:
     __rmul__ = __mul__
     __radd__ = __add__
 
-    def __str__(sel_str = ''
+    def __str__(self):
+        _str = ''
         for idx, key in enumerate(self.coeffs.keys()):
             if key == 'const':
                 if self.coeffs[key] < 0:
