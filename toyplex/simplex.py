@@ -98,6 +98,7 @@ class Simplex:
             # necessary to remove art_objective because entering var is found using the last row in tab in self.pivot()
             self.tab = np.hstack((self.tab[:-1, :self.n_vars], np.expand_dims(self.tab[:-1, -1], axis=-1)))
             if verbose:
+                self.code = -1
                 print('\noriginal problem has feasible soln and is now in canonical form:')
                 self.print_tab()
             return True
