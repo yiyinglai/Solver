@@ -47,21 +47,17 @@ class Var:
         if isinstance(other, (int, float)):
             return LinConstr(1 * self, '<=', LinExpr({'const': other}))
         elif isinstance(other, Var):
-            if other.name == self.name:
-                print('This is valid, but not necessary')
-                return LinConstr(1 * self, '<=', 1 * other)
-            else:
-                return LinConstr(1 * self, '<=', 1 * other)
+            return LinConstr(1 * self, '<=', 1 * other)
+        elif isinstance(other, LinExpr):
+            return LinConstr(1 * self, '<=', other)
 
     def __ge__(self, other):
         if isinstance(other, (int, float)):
             return LinConstr(1 * self, '>=', LinExpr({'const': other}))
         elif isinstance(other, Var):
-            if other.name == self.name:
-                print('This is valid, but not necessary')
-                return LinConstr(1 * self, '>=', 1 * other)
-            else:
-                return LinConstr(1 * self, '>=', 1 * other)
+            return LinConstr(1 * self, '>=', 1 * other)
+        elif isinstance(other, LinExpr):
+            return LinConstr(1 * self, '>=', other)
 
     def __sub__(self, other):
         return self.__add__(-other)
@@ -99,7 +95,6 @@ class LinExpr:
             return self
 
     def __add__(self, other):
-        # print('LinExpr__add__')
         if isinstance(other, (int, float)):
             if 'const' in self.coeffs.keys():
                 self.coeffs['const'] += other
@@ -155,7 +150,10 @@ class LinExpr:
         _str = ''
         for idx, key in enumerate(self.coeffs.keys()):
             if key == 'const':
-                if self.coeffs[key] < 0:
+                if self.coeffs[key] == 0:
+                    if len(self.coeffs.keys()) == 1:
+                        _str += '0'
+                elif self.coeffs[key] < 0:
                     _str += str(self.coeffs[key])
                 elif self.coeffs[key] > 0:
                     if idx == 0:
@@ -227,7 +225,7 @@ class LinConstr:
             if key in lhskeys:
                 coeffs[key] -= rhs.coeffs[key]
             else:
-                coeffs[key] = rhs.coeffs[key]
+                coeffs[key] = -rhs.coeffs[key]
         # final right hand side
         self.b = -coeffs['const']
         del coeffs['const']
