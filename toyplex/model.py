@@ -195,8 +195,8 @@ class Model:
         # callback functions
         self.int_cb = None
         self.frac_cb = None
-        self.lz_parent = None
-        self.next_node = None
+        self.parent_node = None
+        self.child_node = None
 
         self.verbose = False
 
@@ -226,23 +226,28 @@ class Model:
         self.nodes[0].add_constr(constr)
         self.constrs = self.nodes[0].constrs[:]
 
-    def add_lz_constr(self, lz_constr: LinConstr):
+    def add_lzcut(self, lzcut: LinConstr):
         """Adds a lazy linear constraint, and add slack and surplus variables as needed."""
-        self.lz_constrs.append(lz_constr)
+        self.lz_constrs.append(lzcut)
         # add lazy constraint to leave nodes
         for node in self.candidates.values():
-            node.add_constr(lz_constr)
+            node.add_constr(lzcut)
             node.set_objective(self.objexpr, sense=self.sense)
-        # make child node
-        child_node = copy.deepcopy(self.lz_parent)
-        child_node.add_constr(lz_constr)
-        self.lz_parent = None
+        # add child node
+        self.child_node = self.add_node(self.parent_node, lzcut, add2candidates=False)
+        self.parent_node = None
+
+    def add_node(self, parent_node: Node, constr: LinConstr, add2candidates=True):
+        """Adds a new node to the tree, with additional constraint and returns it."""
+        child_node = copy.deepcopy(parent_node)
         child_node.key = len(self.nodes)
         child_node.code = -1
+        child_node.add_constr(constr)
         child_node.set_objective(self.objexpr, sense=self.sense)
         self.nodes[child_node.key] = child_node
-        # promote child_node in candidates
-        self.next_node = child_node
+        if add2candidates:
+            self.candidates[child_node.key] = child_node
+        return child_node
 
     def set_objective(self, objexpr: LinExpr, sense='min'):
         """Sets objective."""
@@ -270,7 +275,7 @@ class Model:
         print()
 
     def candidates_queue(self):
-        """Returns a queue of candidate nodes in the order of processing."""
+        """Returns a queue of keys of the candidate nodes."""
         if self.strategy == 'best first':
             if self.sense == 'min':
                 return sorted(self.candidates, key=lambda key: self.candidates[key].objval if self.candidates[key].objval is not None else math.inf)
@@ -285,7 +290,7 @@ class Model:
             self.icmbval = node.objval
 
     def process(self, key):
-        """Processes a node."""
+        """Processes a node, i.e. branch and bound."""
         node = self.nodes[key]
         if node.code == 0:
             # branch or bound
@@ -302,21 +307,9 @@ class Model:
                         self.sense == 'min' and node.objval < self.icmbval):
                     var = var_opts[0]
                     # branch down
-                    left_node = copy.deepcopy(node)
-                    left_node.key = len(self.nodes)
-                    left_node.code = -1
-                    left_node.add_constr(var <= math.floor(var.val))
-                    left_node.set_objective(self.objexpr, sense=self.sense)
-                    self.nodes[left_node.key] = left_node
-                    self.candidates[left_node.key] = left_node
+                    self.add_node(node, var <= math.floor(var.val))
                     # branch up
-                    right_node = copy.deepcopy(node)
-                    right_node.key = len(self.nodes)
-                    right_node.code = -1
-                    right_node.add_constr(var >= math.ceil(var.val))
-                    right_node.set_objective(self.objexpr, sense=self.sense)
-                    self.nodes[right_node.key] = right_node
-                    self.candidates[right_node.key] = right_node
+                    self.add_node(node, var >= math.ceil(var.val))
                     del self.candidates[key]
                 # bound
                 else:
@@ -330,15 +323,15 @@ class Model:
                     self.update_icmb(node)
                 else:
                     del self.candidates[key]
-                    self.lz_parent = node
+                    self.parent_node = node
                     self.int_cb(self)
                     # no lazy constraint is added
-                    if self.lz_parent:
-                        self.lz_parent = None
+                    if self.parent_node:
                         self.update_icmb(node)
 
         # unbounded: terminate optimization
         elif node.code == 1:
+            del self.candidates[key]
             self.code = 1
         # infeasible:
         elif node.code == 2:
@@ -353,12 +346,12 @@ class Model:
         self.verbose = verbose
 
         while self.code == -1:
-            if self.candidates or self.next_node:
-                if self.next_node:
-                    key = self.next_node.key
-                    node = self.next_node
+            if self.candidates or self.child_node:
+                if self.child_node:
+                    node = self.child_node
+                    key = node.key
                     self.candidates[key] = node
-                    self.next_node = None
+                    self.child_node = None
                 else:
                     key = self.candidates_queue()[0]
                     node = self.nodes[key]
@@ -394,11 +387,11 @@ class Model:
 if __name__ == '__main__':
     def my_integral_callback(model):
         print('Inside my integral callback')
-        x_val = model.lz_parent.vars['x'].val
-        y_val = model.lz_parent.vars['y'].val
+        x_val = model.parent_node.vars['x'].val
+        y_val = model.parent_node.vars['y'].val
         if 4 * x_val + y_val > 36.5:
             print('Add lazy constraint', str(4 * x + y <= 36.5))
-            model.add_lz_constr(4 * x + y <= 36.5)
+            model.add_lzcut(4 * x + y <= 36.5)
 
     m = Model()
     x = m.add_var(type='int', name='x')
