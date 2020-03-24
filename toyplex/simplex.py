@@ -48,7 +48,7 @@ class Simplex:
             return False
 
         # condition 4: isolated var
-        if len(self.indices()) != self.n_constrs:
+        if len(self.indices()) < self.n_constrs:
             if verbose:
                 print('not in canonical form for violating condition 4: isolated var')
             return False
