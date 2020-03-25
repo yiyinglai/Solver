@@ -168,19 +168,27 @@ C = range(stores)
 
 model = Model()
 
+# variables
 y = []
 for w in W:
-    y.append(model.add_var(type='bin', name='x_' + str(w)))
+    y.append(model.add_var(type='bin', name='y' + str(w)))
 
 x = []
 for w in W:
     x_w = []
     for r in C:
-        x_w.append(model.add_var(type='cont', name='x_'+str(w)+str(r)))
+        x_w.append(model.add_var(type='cont', name='x'+str(w)+','+str(r)))
     x.append(x_w)
 
+# constraints
 for r in C:
     model.add_constr(sum(x[w][r] for w in W) == 1)
 
 for w in W:
-    model.add_constr(sum(x[w][r]))
+    model.add_constr(sum(x[w][r] for r in C) <= stores * y[w])
+
+for k in range(3):
+    model.add_constr(sum(y[w] for w in regions[k]) <= region_max[k])
+
+model.set_objective(sum(sum(t[w][r] * x[w][r] for r in C) for w in W) + sum(warehouse_costs[w] * y[w] for w in W), sense='min')
+model.optimize()

@@ -1,3 +1,4 @@
+import time
 import numpy as np
 
 
@@ -10,6 +11,8 @@ class Simplex:
 
     def __init__(self, arg_tab, names=None):
         """Initiates a Simplex object."""
+        self.iterations = 0
+        self.solvetime = None
         # code -1: solving, 0: solved, 1: unbounded, 2: infeasible
         self.code = -1
 
@@ -132,6 +135,7 @@ class Simplex:
 
     def pivot(self, enters=None, leaves=None, verbose=False):
         """Pivots the tab."""
+        self.iterations += 1
         if enters is None:
             # find pivot point
             enters = np.argmin(self.tab[-1, :self.n_vars])
@@ -180,6 +184,8 @@ class Simplex:
             print('original problem:')
             self.print_tab()
 
+        start = time.time()
+
         # stage 1
         if not self.is_canonical(verbose=verbose):
             self.put_canonical(verbose=verbose)
@@ -188,6 +194,8 @@ class Simplex:
         if self.code == -1:
             while self.should_continue():
                 self.pivot(verbose=verbose)
+
+        self.solvetime = time.time() - start
 
         # report
         if verbose:

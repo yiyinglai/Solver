@@ -345,6 +345,8 @@ class Model:
             self.frac_cb = frac_cb
         self.verbose = verbose
 
+        print('Variables: {} continuous, {} binary, {} integer'.format(len(self.conts), len(self.bins), len(self.ints)))
+
         while self.code == -1:
             if self.candidates or self.child_node:
                 if self.child_node:
@@ -390,7 +392,7 @@ if __name__ == '__main__':
         x_val = model.parent_node.vars['x'].val
         y_val = model.parent_node.vars['y'].val
         if 4 * x_val + y_val > 36.5:
-            print('Add lazy constraint', str(4 * x + y <= 36.5))
+            print('Add lazy cut', str(4 * x + y <= 36.5))
             model.add_lzcut(4 * x + y <= 36.5)
 
     m = Model()
@@ -401,7 +403,7 @@ if __name__ == '__main__':
     m.set_objective(5*x + 4*y, sense='max')
     m.describe()
     m.strategy = 'best first'
-    m.optimize(int_cb=my_integral_callback, verbose=True)
+    m.optimize(int_cb=my_integral_callback, verbose=False)
 
     if m.code == 0:
         print('\nObjective value:{}'.format(m.objval))
