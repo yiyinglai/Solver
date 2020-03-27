@@ -175,6 +175,8 @@ class LinExpr:
                         _str += str(self.coeffs[key]) + '*' + key
                     else:
                         _str += '+' + str(self.coeffs[key]) + '*' + key
+        if _str[0] == '+':
+            _str = _str[1:]
         _str = _str.replace('+', ' + ')
         _str = _str.replace('-', ' - ')
         _str = _str.replace('*', ' * ')
