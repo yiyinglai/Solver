@@ -368,8 +368,10 @@ class Model:
                 self.branch(key)
 
             # no more candidates
-            else:
+            elif self.icmbkey:
                 self.code = 0
+            else:
+                self.code = 2
 
         # finally
         if self.code == 0:
