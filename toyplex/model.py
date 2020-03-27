@@ -301,11 +301,12 @@ class Model:
             print('\nNode {}'.format(node.key))
             node.describe()
             if node.code == 0:
-                print(', '.join(str(node.vars[key].val) for key in self.vars.keys()))
+                print(', '.join(node.vars[key].name+':'+str(node.vars[key].val) for key in self.vars.keys()))
                 print('Objval: {}'.format(node.objval))
             else:
                 print(node.code)
             print()
+
         # relaxation unbounded or infeasible
         if node.code != 0:
             del self.candidates[node.key]
@@ -341,25 +342,37 @@ class Model:
 
         if (self.sense == 'max' and node.objval > self.icmbval) or (
                 self.sense == 'min' and node.objval < self.icmbval):
-            # branch down
-            left_node = self.add_node(node, var <= math.floor(var.val))
-            self.relax(left_node)
-            # branch up
-            right_node = self.add_node(node, var >= math.ceil(var.val))
-            self.relax(right_node)
+            # binary var
+            if var.type == 'bin':
+                assert 0 <= var.val <= 1
+                left_node = self.add_node(node, var == 0)
+                self.relax(left_node)
+                right_node = self.add_node(node, var == 1)
+                self.relax(right_node)
+            # integer var
+            else:
+                left_node = self.add_node(node, var <= math.floor(var.val))
+                self.relax(left_node)
+                right_node = self.add_node(node, var >= math.ceil(var.val))
+                self.relax(right_node)
 
     def optimize(self, int_cb=None, frac_cb=None, verbose=False):
         """Optimizes the mixed integer programming model."""
+        # setup
         if int_cb is not None:
             self.int_cb = int_cb
         if frac_cb is not None:
             self.frac_cb = frac_cb
         self.verbose = verbose
-
         print('Variables: {} continuous, {} binary, {} integer'.format(len(self.conts), len(self.bins), len(self.ints)))
 
         # root relaxation
-        self.relax(self.nodes[0])
+        root = self.nodes[0]
+        self.relax(root)
+        if root.code == 0:
+            print('\nRoot relaxation: objective {:e}, {} iterations, {:.4f} seconds\n'.format(root.objval, root.spx.iterations, root.spx.solvetime))
+            print('    Nodes    |   Current Node    |     Objective Bounds      |     Work    ')
+            print(' Expl Unexpl |  Obj Depth IntInf | Incumbent    BestBd   Gap | It/Node Time\n')
 
         while self.code == -1:
             # decide which node to branch next
@@ -368,10 +381,11 @@ class Model:
                 self.branch(key)
 
             # no more candidates
-            elif self.icmbkey:
-                self.code = 0
             else:
-                self.code = 2
+                if self.icmbkey:
+                    self.code = 0
+                else:
+                    self.code = 2
 
         # finally
         if self.code == 0:
@@ -412,3 +426,5 @@ if __name__ == '__main__':
     if m.code == 0:
         for var in m.vars.values():
             print("{}({}): {}".format(var.name, var.type, var.val))
+
+    # todo: fix numerical issue
