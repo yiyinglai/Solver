@@ -152,6 +152,17 @@ class Node:
                     if len(arr) == 1:
                         self.vars[key].val = self.spx.tab[:, -1][arr[0]]
 
+    def int_soln(self):
+        """Returns if solution is integral and the number of fractional values."""
+        integral = False
+        num_fracvar = 0
+        for var in [*self.ints.values()] + [*self.bins.values()]:
+            if not float(var.val).is_integer():
+                num_fracvar += 1
+        if num_fracvar == 0:
+            integral = True
+        return integral, num_fracvar
+
 
 class Model:
     """A mixed integer programming model.
@@ -182,8 +193,6 @@ class Model:
         self.surplus = {}
         # constraints
         self.constrs = []
-        self.use_lz_constrs = False
-        self.lz_constrs = []
         self.n_vars = 0
         self.n_constrs = 0
         # objective expression, objective array
@@ -227,14 +236,9 @@ class Model:
         self.constrs = self.nodes[0].constrs[:]
 
     def add_lzcut(self, lzcut: LinConstr):
-        """Adds a lazy linear constraint, and add slack and surplus variables as needed."""
-        self.lz_constrs.append(lzcut)
-        # add lazy constraint to leave nodes
-        for node in self.candidates.values():
-            node.add_constr(lzcut)
-            node.set_objective(self.objexpr, sense=self.sense)
-        # add child node
-        self.child_node = self.add_node(self.parent_node, lzcut, add2candidates=False)
+        """Adds a lazy cut, and add slack and surplus variables as needed."""
+        self.child_node = self.add_node(self.parent_node, lzcut, add2candidates=True)
+        self.relax(self.child_node)
         self.parent_node = None
 
     def add_node(self, parent_node: Node, constr: LinConstr, add2candidates=True):
@@ -282,60 +286,67 @@ class Model:
             else:
                 return sorted(self.candidates, key=lambda key: self.candidates[key].objval if self.candidates[key].objval is not None else -math.inf, reverse=True)
 
-    def update_icmb(self, node):
+    def update_icmb(self, node: Node):
         """Updates incumbent key and objective value as needed."""
         if (self.sense == 'max' and node.objval > self.icmbval) or (
                 self.sense == 'min' and node.objval < self.icmbval):
             self.icmbkey = node.key
             self.icmbval = node.objval
 
-    def process(self, key):
-        """Processes a node, i.e. branch and bound."""
-        node = self.nodes[key]
-        if node.code == 0:
-            # branch or bound
-            frac_vars = [*node.ints.values()] + [*node.bins.values()]
-            var_opts = []
-            for var in frac_vars:
-                if not float(var.val).is_integer():
-                    var_opts.append(var)
+    def relax(self, node):
+        """Solves the relaxation of a node."""
+        node.optimize(verbose=self.verbose)
 
-            # fractional solution
-            if var_opts:
-                # branch
-                if (self.sense == 'max' and node.objval > self.icmbval) or (
-                        self.sense == 'min' and node.objval < self.icmbval):
-                    var = var_opts[0]
-                    # branch down
-                    self.add_node(node, var <= math.floor(var.val))
-                    # branch up
-                    self.add_node(node, var >= math.ceil(var.val))
-                    del self.candidates[key]
-                # bound
-                else:
-                    del self.candidates[key]
-
-            # integral solution
+        if self.verbose:
+            print('\nNode {}'.format(node.key))
+            node.describe()
+            if node.code == 0:
+                print(', '.join(str(node.vars[key].val) for key in self.vars.keys()))
+                print('Objval: {}'.format(node.objval))
             else:
-                # no callback function
+                print(node.code)
+            print()
+        # relaxation unbounded or infeasible
+        if node.code != 0:
+            del self.candidates[node.key]
+            # unbounded
+            if node.code == 1:
+                self.code = 1
+        # relaxation feasible
+        else:
+            # integral solution
+            integral, num_fracvar = node.int_soln()
+            if integral:
+                del self.candidates[node.key]
+                # no callback, simply update incumbent
                 if self.int_cb is None:
-                    del self.candidates[key]
                     self.update_icmb(node)
+                # integral solution callback
                 else:
-                    del self.candidates[key]
                     self.parent_node = node
                     self.int_cb(self)
-                    # no lazy constraint is added
-                    if self.parent_node:
+                    # no lazy constraints added
+                    if self.parent_node is not None:
                         self.update_icmb(node)
+                        self.parent_node = None
 
-        # unbounded: terminate optimization
-        elif node.code == 1:
-            del self.candidates[key]
-            self.code = 1
-        # infeasible:
-        elif node.code == 2:
-            del self.candidates[key]
+    def branch(self, key):
+        """Branch at the node specified by the key."""
+        node = self.nodes[key]
+        del self.candidates[key]
+
+        # todo: which_var()
+        # var = which_var()
+        var = [var for var in node.vars.values() if not float(var.val).is_integer()][0]
+
+        if (self.sense == 'max' and node.objval > self.icmbval) or (
+                self.sense == 'min' and node.objval < self.icmbval):
+            # branch down
+            left_node = self.add_node(node, var <= math.floor(var.val))
+            self.relax(left_node)
+            # branch up
+            right_node = self.add_node(node, var >= math.ceil(var.val))
+            self.relax(right_node)
 
     def optimize(self, int_cb=None, frac_cb=None, verbose=False):
         """Optimizes the mixed integer programming model."""
@@ -347,33 +358,20 @@ class Model:
 
         print('Variables: {} continuous, {} binary, {} integer'.format(len(self.conts), len(self.bins), len(self.ints)))
 
-        while self.code == -1:
-            if self.candidates or self.child_node:
-                if self.child_node:
-                    node = self.child_node
-                    key = node.key
-                    self.candidates[key] = node
-                    self.child_node = None
-                else:
-                    key = self.candidates_queue()[0]
-                    node = self.nodes[key]
+        # root relaxation
+        self.relax(self.nodes[0])
 
-                node.optimize(verbose=self.verbose)
-                if self.verbose:
-                    print('\nNode {}'.format(node.key))
-                    node.describe()
-                    if node.code == 0:
-                        print(', '.join(str(node.vars[key].val) for key in self.vars.keys()))
-                        print('Objval: {}'.format(node.objval))
-                    else:
-                        print(node.code)
-                self.process(key)
+        while self.code == -1:
+            # decide which node to branch next
+            if self.candidates:
+                key = self.candidates_queue()[0]
+                self.branch(key)
 
             # no more candidates
             else:
                 self.code = 0
 
-        # finishing
+        # finally
         if self.code == 0:
             self.objkey = self.icmbkey
             self.objval = self.icmbval
@@ -388,12 +386,15 @@ class Model:
 
 if __name__ == '__main__':
     def my_integral_callback(model):
-        print('Inside my integral callback')
         x_val = model.parent_node.vars['x'].val
         y_val = model.parent_node.vars['y'].val
         if 4 * x_val + y_val > 36.5:
+            print('Inside my integral callback: {}, {}'.format(x_val, y_val))
             print('Add lazy cut', str(4 * x + y <= 36.5))
             model.add_lzcut(4 * x + y <= 36.5)
+        else:
+            print('Inside my integral callback: {}, {}'.format(x_val, y_val))
+            print('No lazy cuts added')
 
     m = Model()
     x = m.add_var(type='int', name='x')
@@ -403,13 +404,9 @@ if __name__ == '__main__':
     m.set_objective(5*x + 4*y, sense='max')
     m.describe()
     m.strategy = 'best first'
+    # m.optimize(verbose=False)
     m.optimize(int_cb=my_integral_callback, verbose=False)
 
     if m.code == 0:
-        print('\nObjective value:{}'.format(m.objval))
         for var in m.vars.values():
             print("{}({}): {}".format(var.name, var.type, var.val))
-    elif m.code == 1:
-        print('Model unbounded')
-    elif m.code == 2:
-        print('Model infeasible')
